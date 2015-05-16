@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact name="Server-multithread:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/Server_multithread_jar</output-path>
+    <root id="root">
+      <element id="archive" name="UDP0.jar">
+        <element id="module-output" name="UDP0" />
+      </element>
+    </root>
+  </artifact>
+</component>
