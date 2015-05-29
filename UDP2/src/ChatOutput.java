@@ -20,4 +20,8 @@ public class ChatOutput extends JPanel{
     public void AddText(String str){
         textArea.append(str);
     }
+
+    public void Clear(){
+        textArea.setText("");
+    }
 }

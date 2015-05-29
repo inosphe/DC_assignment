@@ -1,7 +1,4 @@
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.GraphicsEnvironment;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.net.InetAddress;
@@ -11,21 +8,38 @@ import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 
-public class ChatSystem extends JFrame implements ProtocolEventListener, ActionListener{
+public class ChatSystem extends JFrame{
+    static public final int STATE_ID_CONNECTION = 0;
+    static public final int STATE_ID_CHAT = 1;
+
+    public final int PROTOCOL_TYPE_UDP = 0;
+    public final int PROTOCOL_TYPE_HDLC = 1;
+    public final int PROTOCOL_TYPE_HDLC_SERIAL = 2;
 
     private Protocol protocol;
 
-    private JTextField tf_port_server;
-    private JTextField tf_addr_client, tf_port_client;
+    SceneState states[] = new SceneState[5];
+    private SceneState current_state = null;
 
-    ChatInput input;
-    ChatOutput output;
 
-    JButton btn_server, btn_client;
+    public int timeout = 100;
+    public int timeout_cnt = 10;
+    public int delay = 0;
+    public int loss_percentage = 0;
+    public int repeat_count = 1;
+
 
     public ChatSystem() {
         initProtocol();
         initUI();
+        initStates();
+
+        SetState(STATE_ID_CONNECTION);
+    }
+
+    private void initStates(){
+        states[STATE_ID_CONNECTION] = new ConnectionScene(this, STATE_ID_CONNECTION);
+        states[STATE_ID_CHAT] = new ChatScene(this, STATE_ID_CHAT);
     }
 
     private void initProtocol(){
@@ -33,82 +47,23 @@ public class ChatSystem extends JFrame implements ProtocolEventListener, ActionL
     }
 
     private void initUI() {
-        final ProtocolEventListener el = this;
-
-        JPanel panel_server = new JPanel();
-        tf_port_server = new JTextField(5);
-        tf_port_server.setText("9999");
-        btn_server = new JButton();
-        btn_server.setText("Start Server");
-        btn_server.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int port = Integer.parseInt(tf_port_server.getText());
-                System.out.println(port);
-                protocol = new ChatProtocolWithStopAndWait(el);
-                protocol.openServer(port);
-                try {
-                    output.AddText("Server Started (" + InetAddress.getLocalHost().getHostAddress() + ":" + port + ")\n");
-                } catch (UnknownHostException ex) {
-                    System.out.println(ex);
-                }
-
-                DisableButtons();
-            }
-        });
-        panel_server.add(tf_port_server);
-        panel_server.add(btn_server);
-
-        JPanel panel_client = new JPanel();
-        tf_addr_client = new JTextField(20);
-        tf_addr_client.setText("localhost");
-        tf_port_client = new JTextField(5);
-        tf_port_client.setText("9999");
-        btn_client = new JButton();
-        btn_client.setText("Connect to");
-        btn_client.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                try {
-                    int port = Integer.parseInt(tf_port_client.getText());
-                    protocol = new ChatProtocolWithStopAndWait(el);
-                    System.out.println(tf_addr_client.getText());
-                    System.out.println(port);
-                    protocol.connectToServer(InetAddress.getByName(tf_addr_client.getText()), port);
-                    output.AddText("try to connect (" + tf_addr_client.getText() + ":" + port + ")\n");
-                    protocol.Send("try to connect\n");
-
-                    DisableButtons();
-
-                } catch (UnknownHostException ex) {
-                    System.out.println(ex);
-                }
-            }
-        });
-        panel_client.add(tf_addr_client);
-        panel_client.add(tf_port_client);
-        panel_client.add(btn_client);
-
-        JPanel panel_connection = new JPanel();
-        panel_connection.setLayout(new BorderLayout());
-        panel_connection.add(panel_client, BorderLayout.NORTH);
-        panel_connection.add(panel_server, BorderLayout.SOUTH);
-
-        add(panel_connection, BorderLayout.NORTH);
-
-        input = new ChatInput(this);
-        input.setVisible(true);
-        input.SetEnabled(false);
-        add(input, BorderLayout.SOUTH);
-
-        output = new ChatOutput();
-        output.setVisible(true);
-        add(output, BorderLayout.CENTER);
-
         pack();
         setTitle("UDP Chat");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+    }
+
+    public void MonitorConfiguration(){
+        Monitor("Delay("+delay+"), Loss_Percentage("+loss_percentage+"), RepeatCount("+repeat_count+")");
+        if(delay>0){
+            Monitor("Ack packet will be delayed " + delay + "ms.");
+        }
+        if(repeat_count>1){
+            Monitor("All packet(DATA/ACK/NCK) will be sended " + repeat_count + " times.");
+        }
+        if(loss_percentage>0){
+            Monitor("All received packet will be lossed by " + loss_percentage + "%.");
+        }
     }
 
     public static void main(String[] args) {
@@ -122,39 +77,103 @@ public class ChatSystem extends JFrame implements ProtocolEventListener, ActionL
         });
     }
 
-    public void OnBlocked(ProtocolEvent evt)
-    {
-        input.SetEnabled(!protocol.IsWaiting() && protocol.IsConnectionEstablsished());
-    }
-    public void OnReceived(ReceiveEvent evt)
-    {
-        output.AddText(">" + evt.GetString());
-    }
-    public void OnConnectionEstablished(ProtocolEvent evt){
-        System.out.println("connection established.");
-        tf_addr_client.setText(protocol.GetAddress().getHostAddress());
-        tf_port_client.setText(protocol.GetPort() + "");
-        input.SetEnabled(!protocol.IsWaiting());
-        output.AddText("Connected\n");
+
+
+    public void CreateServer(int protocolType, int arqType, int port){
+        protocol = CreateProtocolInstance(protocolType);
+        protocol.SetARQType(arqType);
+        ConnectionUDP connection = (ConnectionUDP)protocol.GetConnection();
+        connection.open_port = port;
+        protocol.openServer();
+
+
+        SetState(STATE_ID_CHAT);
+        protocol.MonitorARQType();
+
+        try {
+            Print("Server Started (" + InetAddress.getLocalHost().getHostAddress() + ":" + port + ")\n");
+            Monitor("Server Started (" + InetAddress.getLocalHost().getHostAddress() + ":" + port + ")\n");
+        } catch (UnknownHostException ex) {
+            Monitor(ex.toString());
+        }
     }
 
-    public void OnConnectionLost(ProtocolEvent evt) {
-        input.SetEnabled(!protocol.IsWaiting() && protocol.IsConnectionEstablsished());
+    public void CreateClient(int protocolType, int arqType, InetAddress server_addr, int server_port){
+        protocol = CreateProtocolInstance(protocolType);
+        protocol.SetARQType(arqType);
+        ConnectionUDP connection = (ConnectionUDP)protocol.GetConnection();
+        connection.target_addr = server_addr;
+        connection.target_port = server_port;
+        protocol.connectToServer();
+
+
+        SetState(STATE_ID_CHAT);
+        protocol.MonitorARQType();
+
+        Send("try to connect\n");
+        Print("try to connect (" + server_addr.getHostAddress() + ":" + server_port + ")\n");
+        Monitor("try to connect (" + server_addr.getHostAddress() + ":" + server_port + ")\n");
     }
 
-    public void actionPerformed(ActionEvent evt) {
-        JTextField textField = (JTextField)evt.getSource();
-        String text = textField.getText();
-        System.out.println(text);
-        textField.setText("");
-        protocol.Send(text + "\n");
+    public void PrintError(String str){
+        if(current_state != null){
+            current_state.Print(str);
+        }
     }
 
-    public void DisableButtons(){
-        btn_client.setEnabled(false);
-        btn_server.setEnabled(false);
-        tf_addr_client.setEnabled(false);
-        tf_port_client.setEnabled(false);
-        tf_port_server.setEnabled(false);
+    public void Print(String str){
+        if(current_state != null){
+            current_state.Print(str);
+        }
+    }
+
+    public void Send(String str){
+        protocol.Send(str);
+    }
+
+    public void SetState(int i){
+        if(current_state != null){
+            current_state.OnExit();
+            remove(current_state);
+            if(protocol!=null)
+                protocol.removeEventListener(current_state);
+            current_state.setVisible(false);
+        }
+
+        current_state = states[i];
+        if(current_state != null){
+            add(current_state, BorderLayout.NORTH);
+            if(protocol!=null)
+                protocol.AddEventListener(current_state);
+            current_state.setVisible(true);
+            current_state.OnEnter();
+        }
+
+        validate();
+        repaint();
+        pack();
+    }
+
+    public Protocol GetProtocol(){
+        return protocol;
+    }
+
+    public Protocol CreateProtocolInstance(int type){
+        switch(type){
+            case PROTOCOL_TYPE_HDLC:
+                return new ProtocolHDLC(this, new ConnectionUDP());
+            default:
+                return null;
+        }
+    }
+
+    public void ClearProtocol(){
+        protocol.Clear(); protocol = null;
+    }
+
+    public void Monitor(String str){
+        if(current_state != null){
+            current_state.Monitor(str);
+        }
     }
 }
