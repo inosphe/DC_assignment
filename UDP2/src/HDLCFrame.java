@@ -56,6 +56,14 @@ public class HDLCFrame {
 
         System.out.println("HDLCFrame - end");
     }
+    
+    static public int GetARQType(byte flag){
+    	return (flag & 0xF0) >> 4;
+    }
+    
+    static public int GetType(byte flag){
+    	return (flag & 0x0F);
+    }
 
 
     public Frame BuildFrame(boolean buildByteArray){
@@ -67,7 +75,9 @@ public class HDLCFrame {
         f.ackSeq = ackNumber;
         if(buildByteArray) {
             f.byteArray = GetByteArray();
-            f.crcValidated = CheckCRC(f.byteArray, len+8);
+            if(type == FLAG_TYPE_DATA){
+            	f.crcValidated = CheckCRC(f.byteArray, len+8);
+            }
         }
         else{
             f.crcValidated = crcValidated;
@@ -99,17 +109,24 @@ public class HDLCFrame {
         int dataLen = 0;
         if(data != null)
             dataLen = data.length;
-        ByteBuffer buffer = ByteBuffer.allocate(4 + dataLen + 4);
+        int totalLength = 4 + dataLen;
+        if(data != null){
+        	totalLength += 4;
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(totalLength);
         buffer.put((byte) seqNumber);
         buffer.put((byte) ackNumber);
         byte flag = (byte)(arqType <<4 | type);
         buffer.put(flag);
         buffer.put((byte) dataLen);
-        buffer.putInt(0);
-        if(data != null)
-            buffer.put(data);
-        int crc = GetCRC(buffer.array(), dataLen+8);
-        buffer.putInt(4, crc);
+        
+        if(data != null){
+        	buffer.putInt(0);
+        	buffer.put(data);
+        	int crc = GetCRC(buffer.array(), dataLen+8);
+            buffer.putInt(4, crc);
+        }            
+        
         buffer.flip();
         return buffer.array();
     }

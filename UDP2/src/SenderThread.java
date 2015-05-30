@@ -30,6 +30,8 @@ public class SenderThread extends Thread{
 
                 Frame sendFrame = sendBuffer.element();
                 sendBuffer.poll();
+                
+                System.out.println("senderframe-send | " + sendFrame.ToString());
 
                 int count = protocol.system.timeout_cnt;
                 protocol.Send(sendFrame, protocol.system.repeat_count);
@@ -65,7 +67,7 @@ public class SenderThread extends Thread{
                 protocol.lockSend.unlock();
             }
             catch(InterruptedException e){
-                protocol.system.Monitor(e.toString());
+                e.printStackTrace();
             }
         }
     }

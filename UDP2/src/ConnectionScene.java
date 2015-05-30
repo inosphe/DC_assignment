@@ -1,10 +1,13 @@
+import javax.comm.CommPortIdentifier;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 
 /**
  * Created by inosphe on 15. 5. 22..
@@ -14,11 +17,12 @@ public class ConnectionScene extends SceneState {
     private JTextField tf_addr_client, tf_port_client;
     private JTextField tf_timeout, tf_timeout_count;
     private JButton btn_server, btn_client;
-    private JComboBox combo_protocolType, combo_ARQType;
+    private JComboBox combo_protocolType, combo_ARQType, combo_Serial;
     private JTextField tf_delay, tf_loss_percentage, tf_repeat_count;
 
     private int selectedProtocolType = 1;
     private int selectedARQType = 1;
+    private CommPortIdentifier selectedPortId = null;
 
 
     public ConnectionScene(ChatSystem _system, int type){
@@ -34,8 +38,18 @@ public class ConnectionScene extends SceneState {
             @Override
             public void actionPerformed(ActionEvent e) {
                 int port = Integer.parseInt(tf_port_server.getText());
-                system.CreateServer(selectedProtocolType, selectedARQType, port);
-                EnableButtons(false);
+                
+                switch(selectedProtocolType){
+                case ChatSystem.PROTOCOL_TYPE_UDP:
+                case ChatSystem.PROTOCOL_TYPE_HDLC:
+                	system.CreateServer(selectedProtocolType, selectedARQType, port);
+                	break;
+                case ChatSystem.PROTOCOL_TYPE_HDLC_SERIAL:
+                	if(selectedPortId != null)
+                		system.CreateServer(selectedProtocolType, selectedARQType, selectedPortId);
+                	break;
+                }
+                //EnableButtons(false);
             }
         });
         panel_server.add(tf_port_server);
@@ -54,29 +68,28 @@ public class ConnectionScene extends SceneState {
                 try {
                     InetAddress server_addr = InetAddress.getByName(tf_addr_client.getText());
                     int server_port = Integer.parseInt(tf_port_client.getText());
-                    system.CreateClient(selectedProtocolType, selectedARQType, server_addr, server_port);
-                    EnableButtons(false);
+                    
+                    switch(selectedProtocolType){
+                    case ChatSystem.PROTOCOL_TYPE_UDP:
+                    case ChatSystem.PROTOCOL_TYPE_HDLC:
+                    	system.CreateClient(selectedProtocolType, selectedARQType, server_addr, server_port);
+                    	break;
+                    case ChatSystem.PROTOCOL_TYPE_HDLC_SERIAL:
+                    	if(selectedPortId != null)
+                    		system.CreateClient(selectedProtocolType, selectedARQType, selectedPortId);
+                    	break;
+                    }
+                    
+                    //EnableButtons(false);
 
                 } catch (UnknownHostException ex) {
-                    System.out.println(ex);
+                	ex.printStackTrace();
                 }
             }
         });
         panel_client.add(tf_addr_client);
         panel_client.add(tf_port_client);
         panel_client.add(btn_client);
-
-        combo_protocolType = new JComboBox();
-        combo_protocolType.addItem("NoFrame(UDP)");
-        combo_protocolType.addItem("Frame(UDP)");
-        combo_protocolType.addItem("Frame(Serial)");
-        combo_protocolType.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                selectedProtocolType = combo_protocolType.getSelectedIndex();
-            }
-        });
-        combo_protocolType.setSelectedIndex(1);
 
         combo_ARQType = new JComboBox();
         combo_ARQType.addItem("No ARQ");
@@ -89,9 +102,38 @@ public class ConnectionScene extends SceneState {
             }
         });
         combo_ARQType.setSelectedIndex(1);
+        
+        combo_Serial = new JComboBox<>();
+        ArrayList<CommPortIdentifier> ports= SerialHelper.GetSerialPorts();
+        for(CommPortIdentifier c : ports){
+        	combo_Serial.addItem(c.getName());
+        }
+        combo_Serial.addActionListener(new ActionListener(){
+        	@Override
+        	public void actionPerformed(ActionEvent e){
+        		selectedPortId = ports.get(combo_Serial.getSelectedIndex());
+        	}
+        });
+        if(combo_Serial.getItemCount()>0){
+        	combo_Serial.setSelectedIndex(0);
+        }
+        
+        combo_protocolType = new JComboBox();
+        combo_protocolType.addItem("NoFrame(UDP)");
+        combo_protocolType.addItem("Frame(UDP)");
+        combo_protocolType.addItem("Frame(Serial)");
+        combo_protocolType.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                selectedProtocolType = combo_protocolType.getSelectedIndex();
+                
+                combo_Serial.setEnabled(selectedProtocolType == ChatSystem.PROTOCOL_TYPE_HDLC_SERIAL);
+            }
+        });
+        combo_protocolType.setSelectedIndex(1);
 
         tf_timeout = new JTextField(5);
-        tf_timeout.setText("100");
+        tf_timeout.setText("250");
         ;
         tf_timeout.addActionListener(new ActionListener() {
             @Override
@@ -103,6 +145,7 @@ public class ConnectionScene extends SceneState {
                 } catch (NumberFormatException ex) {
                     btn_server.setEnabled(false);
                     btn_client.setEnabled(false);
+                    ex.printStackTrace();
                 }
             }
         });
@@ -120,6 +163,7 @@ public class ConnectionScene extends SceneState {
                 } catch (NumberFormatException ex) {
                     btn_server.setEnabled(false);
                     btn_client.setEnabled(false);
+                    ex.printStackTrace();
                 }
             }
         });
@@ -138,6 +182,7 @@ public class ConnectionScene extends SceneState {
                 } catch (NumberFormatException ex) {
                     btn_server.setEnabled(false);
                     btn_client.setEnabled(false);
+                    ex.printStackTrace();
                 }
             }
         });
@@ -155,6 +200,7 @@ public class ConnectionScene extends SceneState {
                 } catch (NumberFormatException ex) {
                     btn_server.setEnabled(false);
                     btn_client.setEnabled(false);
+                    ex.printStackTrace();
                 }
             }
         });
@@ -172,6 +218,7 @@ public class ConnectionScene extends SceneState {
                 } catch (NumberFormatException ex) {
                     btn_server.setEnabled(false);
                     btn_client.setEnabled(false);
+                    ex.printStackTrace();
                 }
             }
         });
@@ -201,54 +248,51 @@ public class ConnectionScene extends SceneState {
         c.gridx = 1;
         c.gridy = 2;
         this.add(combo_ARQType, c);
-
-        JPanel panel = new JPanel(new GridBagLayout());
+        
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridwidth = 1;
-        c.gridx = 0;
-        c.gridy = 0;
-        panel.add(new JLabel("timeout"), c);
         c.gridx = 1;
-        c.gridy = 0;
-        panel.add(tf_timeout, c);
-        c.gridx = 0;
-        c.gridy = 1;
-        panel.add(new JLabel("timeout count"), c);
-        c.gridx = 1;
-        c.gridy = 1;
-        panel.add(tf_timeout_count, c);
-
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.gridwidth = 1;
-        c.gridx = 0;
         c.gridy = 3;
-        this.add(panel, c);
+        this.add(combo_Serial, c);
+        
+        
+        
+        
 
+        JPanel panel = new JPanel();
+        panel.setLayout(new GridLayout(0, 2));
+        panel.setBorder(BorderFactory.createTitledBorder("timeout"));
+        panel.add(new JLabel("timeout"));
+        panel.add(tf_timeout);
+        panel.add(new JLabel("timeout count"));
+        panel.add(tf_timeout_count);
 
         JPanel panel2 = new JPanel();
+        panel2.setLayout(new GridLayout(0, 2));
+        panel2.setBorder(BorderFactory.createTitledBorder("network"));
 
-        panel2.setLayout(new BoxLayout(panel2, BoxLayout.PAGE_AXIS));
+        panel2.add(new JLabel("ack delay"));
+        panel2.add(tf_delay);
 
-        JPanel panel3 = new JPanel();
-        panel3.add(new JLabel("ack delay"));
-        panel3.add(tf_delay);
-        panel2.add(panel3);
+        panel2.add(new JLabel("loss(%)"));
+        panel2.add(tf_loss_percentage);
 
-        panel3 = new JPanel();
-        panel3.add(new JLabel("loss(%)"));
-        panel3.add(tf_loss_percentage);
-        panel2.add(panel3);
+        panel2.add(new JLabel("repeat"));
+        panel2.add(tf_repeat_count);
+        
 
-        panel3 = new JPanel();
-        panel3.add(new JLabel("repeat"));
-        panel3.add(tf_repeat_count);
-        panel2.add(panel3);
-
+        JPanel panelDetail = new JPanel();
+        panelDetail.setLayout(new GridLayout(0,2));
+        panelDetail.setBorder(BorderFactory.createTitledBorder("detail"));
+        panelDetail.add(panel);
+        panelDetail.add(panel2);
+        
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.gridwidth = 1;
-        c.gridx = 1;
-        c.gridy = 3;
-        this.add(panel2, c);
+        c.gridwidth = 3;
+        c.gridx = 0;
+        c.gridy = 4;
+        this.add(panelDetail, c);
+        
 
     }
 

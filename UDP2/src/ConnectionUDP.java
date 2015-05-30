@@ -10,12 +10,7 @@ import java.net.SocketException;
 public class ConnectionUDP extends Connection {
     public InetAddress target_addr;
     public int target_port;
-
     public int open_port;
-    private boolean isServer = false;
-    public boolean IsServer(){
-        return isServer;
-    }
 
     DatagramSocket Dsocket;
     DatagramPacket lastPacket;
@@ -36,34 +31,30 @@ public class ConnectionUDP extends Connection {
         return connectToServer_UDP();
     }
 
-    public boolean openServer_UDP(){
-        isServer = true;
-        connectionEstablished = false;
+    public boolean openServer_UDP(){        
         target_port = -1;
         target_addr = null;
         try{
             Dsocket = new DatagramSocket(open_port);
-            System.out.println("server started");
+            return true;
         }
         catch(SocketException e){
-            System.out.println(e);
+        	e.printStackTrace();
+            return false;
         }
-
-        return true;
     }
 
     public boolean connectToServer_UDP(){
-        isServer = false;
-        connectionEstablished = true;
-
+        super._ConnectToServer();
 
         try{
             Dsocket = new DatagramSocket();
+            super._StartServer();
             open_port = Dsocket.getPort();
             System.out.println("connected" + target_addr.getHostAddress() + ":" + target_port);
         }
         catch(SocketException e){
-            System.out.println(e);
+        	e.printStackTrace();
         }
 
         return true;
@@ -81,20 +72,11 @@ public class ConnectionUDP extends Connection {
             }
         }
         catch (IOException e){
-            System.out.println(e.toString());
+        	e.printStackTrace();
         }
         return true;
     }
 
-    public boolean Resend(){
-        try{
-            Dsocket.send(lastPacket);
-        }
-        catch (IOException e){
-            System.out.println(e.toString());
-        }
-        return true;
-    }
 
     public byte[] Receive(){
         DatagramPacket recv_packet = new DatagramPacket(recv_buffer, MAXBUFFER);
@@ -102,7 +84,7 @@ public class ConnectionUDP extends Connection {
             Dsocket.receive(recv_packet);
         }
         catch (IOException e){
-            System.out.println(e.toString());
+        	e.printStackTrace();
         }
 
         if(!connectionEstablished){

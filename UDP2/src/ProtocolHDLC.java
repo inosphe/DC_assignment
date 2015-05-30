@@ -8,6 +8,8 @@ public class ProtocolHDLC extends ProtocolThreadBase {
 
     @Override
     protected Frame BuildReceiveFrame(byte[] bytes){
+    	if(bytes == null)
+    		return null;
         HDLCFrame hdlcFrame = new HDLCFrame(bytes);
         return hdlcFrame.BuildFrame(false);
     }

@@ -17,25 +17,26 @@ public abstract class Protocol {
 
     public boolean openServer(){
         try{
-            connection.StartServer();
-            Init();
+            if(connection.StartServer() == false)
+            	return false;
+            return Init();
         }
         catch (Exception e){
             system.PrintError(e.toString());
             return false;
         }
-        return true;
     }
     public boolean connectToServer(){
         try{
-            connection.ConnectToServer();
-            Init();
+            if(connection.ConnectToServer() == false)
+            	return false;
+            
+            return Init();
         }
         catch (Exception e){
             system.PrintError(e.toString());
             return false;
         }
-        return true;
     }
 
     protected boolean Init(){return true;}
@@ -110,9 +111,10 @@ public abstract class Protocol {
         sendBuffer = new Frame[windowSize];
     }
 
-    public int NextSendSeqNo(){
+    protected int NextSendSeqNo(){
         int seq = sendeSeqNo;
         sendeSeqNo = (sendeSeqNo+1)%windowSize;
+        System.out.println("NextSendSeqNo | " + seq + " -> " + sendeSeqNo);
         return seq;
     }
 
@@ -152,7 +154,7 @@ public abstract class Protocol {
     }
 
     public void OnConnectionLost(){
-        system.PrintError("Connection Lost.\n");
+        system.Alert("Connection Lost.");
         connection.connectionEstablished = false;
         ProtocolEvent evt = new ProtocolEvent(this);
         for(ProtocolEventListener el : eventListeners){
@@ -166,9 +168,6 @@ public abstract class Protocol {
 
     protected boolean Send(Frame sendFrame, int count){
         sendBuffer[sendFrame.sendSeq] = sendFrame;
-        if(sendFrame.data != null){
-            system.Print("> " + sendFrame.data);
-        }
 
         system.Monitor("Send - " + sendFrame.ToString());
         return connection.Send(sendFrame.byteArray, count);
@@ -190,7 +189,9 @@ public abstract class Protocol {
     }
 
     private void incrementReceiveSeqNo(){
+    	int before = receiveSeqNo;
         receiveSeqNo = (receiveSeqNo+1)%windowSize;
+        System.out.println("incrementReceiveSeqNo | " + before + " -> " + receiveSeqNo);
     }
 
     private boolean IsFutureSequence(int seqNo){
@@ -202,6 +203,8 @@ public abstract class Protocol {
     }
 
     protected void ProcessReceivedFrame(Frame frame){
+    	if(frame == null)
+    		return;
         system.Monitor("Received - " + frame.ToString());
 
         Random random = new Random();
@@ -248,7 +251,7 @@ public abstract class Protocol {
                 Thread.sleep(system.delay);
             }
             catch(InterruptedException e){
-
+            	e.printStackTrace();
             }
         }
         connection.Send(BuildAckFrame(accepted, 0, receiveSeqNo).byteArray, system.repeat_count);
@@ -307,5 +310,8 @@ public abstract class Protocol {
         }
     }
 
-    public void Clear(){}
+    public void Clear(){
+    	if(connection!=null)
+    		connection.Close();
+    }
 }

@@ -63,11 +63,11 @@ public class ChatScene extends SceneState implements ActionListener {
         output.AddText("Connected\n");
     }
 
-    public void OnConnectionLost(ProtocolEvent evt) {
+	public void OnConnectionLost(ProtocolEvent evt) {
         Protocol protocol = system.GetProtocol();
         input.SetEnabled(!protocol.IsWaiting() && protocol.IsConnectionEstablsished());
         system.ClearProtocol();
-        //system.SetState(ChatSystem.STATE_ID_CONNECTION);
+        system.SetState(ChatSystem.STATE_ID_CONNECTION);
     }
 
     public void actionPerformed(ActionEvent evt) {
@@ -75,6 +75,7 @@ public class ChatScene extends SceneState implements ActionListener {
         String text = textField.getText();
         System.out.println(text);
         textField.setText("");
+        system.Print("> " + text + "\n");
         system.Send(text + "\n");
     }
 

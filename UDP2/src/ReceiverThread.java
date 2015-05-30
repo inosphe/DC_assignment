@@ -17,7 +17,6 @@ public class ReceiverThread extends Thread{
                 protocol.RunReceive();
             }
             catch(Exception e){
-                System.out.println(e);
                 e.printStackTrace();
             }
         }
