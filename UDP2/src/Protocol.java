@@ -8,310 +8,354 @@ import java.util.Random;
  * Created by inosphe on 15. 5. 16..
  */
 public abstract class Protocol {
-    static public final int ARQ_TYPE_NOARQ = 0;
-    static public final int ARQ_TYPE_STOP_N_WAIT = 1;
-    static public final int ARQ_TYPE_GO_BACK_N = 2;
+	static public final int ARQ_TYPE_NOARQ = 0;
+	static public final int ARQ_TYPE_STOP_N_WAIT = 1;
+	static public final int ARQ_TYPE_GO_BACK_N = 2;
+	protected int remainedRetryCount = 0;
 
+	public List<ProtocolEventListener> eventListeners = new ArrayList<ProtocolEventListener>();;
 
-    public List<ProtocolEventListener> eventListeners = new ArrayList<ProtocolEventListener>();;
+	public boolean openServer() {
+		try {
+			if (connection.StartServer() == false)
+				return false;
+			return Init();
+		} catch (Exception e) {
+			system.PrintError(e.toString());
+			return false;
+		}
+	}
 
-    public boolean openServer(){
-        try{
-            if(connection.StartServer() == false)
-            	return false;
-            return Init();
-        }
-        catch (Exception e){
-            system.PrintError(e.toString());
-            return false;
-        }
-    }
-    public boolean connectToServer(){
-        try{
-            if(connection.ConnectToServer() == false)
-            	return false;
-            
-            return Init();
-        }
-        catch (Exception e){
-            system.PrintError(e.toString());
-            return false;
-        }
-    }
+	public boolean connectToServer() {
+		try {
+			if (connection.ConnectToServer() == false)
+				return false;
 
-    protected boolean Init(){return true;}
+			return Init();
+		} catch (Exception e) {
+			system.PrintError(e.toString());
+			return false;
+		}
+	}
 
-    protected boolean waiting = false;
-    public boolean IsWaiting(){
-        return waiting;
-    }
+	protected boolean Init() {
+		remainedRetryCount = system.timeout_cnt;
+		return true;
+	}
 
-    private int arqType = ARQ_TYPE_NOARQ;
-    public void SetARQType(int _arqType){
-        arqType = _arqType;
-        if(arqType == ARQ_TYPE_STOP_N_WAIT){
-            SetWindowSize(2);
-        }
-        else if(arqType == ARQ_TYPE_GO_BACK_N){
-            SetWindowSize(8);
-        }
-        else{
-            arqType = ARQ_TYPE_NOARQ;
-            SetWindowSize(2);
-        }
-    }
+	protected boolean waiting = false;
 
-    public void MonitorARQType(){
-        switch(arqType){
-            case ARQ_TYPE_STOP_N_WAIT:
-                system.Monitor("ARQ Type - STOP_N_WAIT");
-                break;
-            case ARQ_TYPE_GO_BACK_N:
-                system.Monitor("ARQ Type - GO_BACK_N");
-                break;
-            case ARQ_TYPE_NOARQ:
-                system.Monitor("ARQ Type - NO_ARQ");
-                break;
-        }
-    }
-    public int GetARQType(){
-        return arqType;
-    }
+	public boolean IsWaiting() {
+		return waiting;
+	}
 
-    public boolean IsConnectionEstablsished(){
-        return connection.connectionEstablished;
-    }
+	private ARQBase arq = null;
 
-    public void AddEventListener(ProtocolEventListener el){
-        eventListeners.add(el);
-    }
-    public void removeEventListener(ProtocolEventListener el){
-        eventListeners.remove(el);
-    }
-    public void SetWating(boolean _waiting){
-        waiting = _waiting;
-        ProtocolEvent evt = new ProtocolEvent(this);
-        for(ProtocolEventListener el : eventListeners){
-            el.OnBlocked(evt);
-        }
-    }
+	public void SetARQType(int arqType) {
+		switch (arqType) {
+		case ARQ_TYPE_STOP_N_WAIT:
+			arq = new StopAndWaitARQ(this);
+			break;
 
-    private int windowSize = 2;
-    private int sendeSeqNo = 0;
-    private int receiveSeqNo = 0;
-    private int ackReceived = 0;
-    private Frame[] sendBuffer = new Frame[windowSize];
+		case ARQ_TYPE_GO_BACK_N:
+			arq = new GoBackNARQ(this, 8);
+			break;
 
-    public int GetLastAckSeq(){
-        return ackReceived;
-    }
+		default:
+			arq = null;
+			break;
+		}
+	}
 
-    private void SetWindowSize(int size) {
-        windowSize = size;
-        sendBuffer = new Frame[windowSize];
-    }
+	public void MonitorARQType() {
+		if (arq == null) {
+			system.Monitor("ARQ Type - NO_ARQ");
+		} else {
+			system.Monitor("ARQ Type - " + arq.ToString());
+		}
+	}
 
-    protected int NextSendSeqNo(){
-        int seq = sendeSeqNo;
-        sendeSeqNo = (sendeSeqNo+1)%windowSize;
-        System.out.println("NextSendSeqNo | " + seq + " -> " + sendeSeqNo);
-        return seq;
-    }
+	public int GetARQType() {
+		if (arq == null) {
+			return ARQ_TYPE_NOARQ;
+		} else {
+			return arq.GetType();
+		}
+	}
 
+	public boolean IsConnectionEstablsished() {
+		return connection.connectionEstablished;
+	}
 
-    public boolean usePiggyBacking = false;
+	public void AddEventListener(ProtocolEventListener el) {
+		eventListeners.add(el);
+	}
 
+	public void removeEventListener(ProtocolEventListener el) {
+		eventListeners.remove(el);
+	}
 
-    ChatSystem system;
-    Connection connection;
+	public void SetWating(boolean _waiting) {
+		waiting = _waiting;
+		ProtocolEvent evt = new ProtocolEvent(this);
+		for (ProtocolEventListener el : eventListeners) {
+			el.OnBlocked(evt);
+		}
+	}
 
-    public Connection GetConnection(){
-        return connection;
-    }
+	public int GetLastAckSeq() {
+		if (arq == null)
+			return -1;
 
-    public Protocol(ChatSystem _system, Connection _connection){
-        system = _system;
-        connection = _connection;
-        connection.protocol = this;
-    }
+		return arq.GetLastAckSeq();
+	}
 
-    public void OnReceive(String str){
-        ReceiveEvent evt = new ReceiveEvent(str);
-        for(ProtocolEventListener el : eventListeners){
-            el.OnReceived(evt);
-        }
-    }
+	protected int NextSendSeqNo() {
+		if (arq == null)
+			return 0;
 
+		return arq.GetNextSendSeqNo();
+	}
 
+	public boolean usePiggyBacking = false;
 
-    public void OnConnectionEstablished(){
-        connection.connectionEstablished = true;
-        waiting = false;
-        ProtocolEvent evt = new ProtocolEvent(this);
-        for(ProtocolEventListener el : eventListeners){
-            el.OnConnectionEstablished(evt);
-        }
-    }
+	ChatSystem system;
+	Connection connection;
 
-    public void OnConnectionLost(){
-        system.Alert("Connection Lost.");
-        connection.connectionEstablished = false;
-        ProtocolEvent evt = new ProtocolEvent(this);
-        for(ProtocolEventListener el : eventListeners){
-            el.OnConnectionLost(evt);
-        }
-    }
+	public Connection GetConnection() {
+		return connection;
+	}
 
-    public boolean Send(String str){
-        return Send(BuildSendFrame(str, NextSendSeqNo(), 0), 0);
-    }
+	public Protocol(ChatSystem _system, Connection _connection) {
+		system = _system;
+		connection = _connection;
+		connection.protocol = this;
+	}
 
-    protected boolean Send(Frame sendFrame, int count){
-        sendBuffer[sendFrame.sendSeq] = sendFrame;
+	public void OnReceive(String str) {
+		ReceiveEvent evt = new ReceiveEvent(str);
+		for (ProtocolEventListener el : eventListeners) {
+			el.OnReceived(evt);
+		}
+	}
 
-        system.Monitor("Send - " + sendFrame.ToString());
-        return connection.Send(sendFrame.byteArray, count);
-    }
-    public boolean ResendFrom(int seqNo){
-        for(int i=seqNo; i!=sendeSeqNo; i=(i+1)%windowSize)
-            Send(sendBuffer[i], 1);
+	public void OnConnectionEstablished() {
+		connection.connectionEstablished = true;
+		waiting = false;
+		ProtocolEvent evt = new ProtocolEvent(this);
+		for (ProtocolEventListener el : eventListeners) {
+			el.OnConnectionEstablished(evt);
+		}
+	}
 
-        return true;
-    }
+	public void OnConnectionLost() {
+		system.Alert("Connection Lost.");
+		connection.connectionEstablished = false;
+		ProtocolEvent evt = new ProtocolEvent(this);
+		for (ProtocolEventListener el : eventListeners) {
+			el.OnConnectionLost(evt);
+		}
+	}
 
-    public void RunReceive(){
-        ProcessReceivedFrame(BuildReceiveFrame(Receive()));
-    }
+	public boolean Send(String str) {
+		if (UpdateBlockedStatus()) {
+			int seqNo = NextSendSeqNo();
+			if (seqNo < 0)
+				return false;
+			else{
+		        system.Print("> " + str);
+				return Send(BuildSendFrame(str, seqNo, 0), 0);
+			}
+		} else
+			return false;
+	}
 
-    protected byte[] Receive(){
-        system.Monitor("Waiting...");
-        return connection.Receive();
-    }
+	public void OnTimeOuted() {
+		assert (arq != null);
 
-    private void incrementReceiveSeqNo(){
-    	int before = receiveSeqNo;
-        receiveSeqNo = (receiveSeqNo+1)%windowSize;
-        System.out.println("incrementReceiveSeqNo | " + before + " -> " + receiveSeqNo);
-    }
+		if (GetRetryCount() < 0) {
+			system.Monitor("Request Failed.\n");
+			system.Monitor("fail");
+			// sleep(2500);
+			OnConnectionLost();
+			
+		}
+		
+		
+		ResendFrom(arq.GetLastAckSeq());
+		
+		UpdateBlockedStatus();
+	}
 
-    private boolean IsFutureSequence(int seqNo){
-        int displacement = receiveSeqNo - seqNo;
-        if(displacement<0)
-            displacement += windowSize;
-        return windowSize>2 && displacement>=windowSize-1;
+	public boolean UpdateBlockedStatus() {
+		if (arq.IsBlocked()) {
+			SetWating(true);
+			return false;
+		}
 
-    }
+		SetWating(false);
+		return true;
+	}
 
-    protected void ProcessReceivedFrame(Frame frame){
-    	if(frame == null)
-    		return;
-        system.Monitor("Received - " + frame.ToString());
+	protected boolean Send(Frame sendFrame, int count) {
+		assert(sendFrame.type == Frame.TYPE_DATA);
+		if(arq != null){
+			arq.SetBuffer(sendFrame);
+			arq.SetTimeout(system.timeout, true);
+		}
 
-        Random random = new Random();
-        int randomValue = random.nextInt(100);
-        if(system.loss_percentage>randomValue){
-            system.Monitor("Frame is forced to loss [Test featrue]) | threshold("+system.loss_percentage+"), value("+randomValue+")");
-            return;
-        }
+		system.Monitor("Send - " + sendFrame.ToString());
+		return connection.Send(sendFrame.byteArray, count);
+	}
 
-        if(frame.type == Frame.TYPE_ACK || frame.type == Frame.TYPE_NACK || usePiggyBacking){
-            OnAck(frame.ackSeq);
-        }
-        else if(arqType != ARQ_TYPE_NOARQ){
-            if(frame.sendSeq != receiveSeqNo){
-                if(arqType != ARQ_TYPE_NOARQ) {
-                    system.Monitor("Invalid Sequence Number | expected(" + receiveSeqNo + "), actual(" + frame.sendSeq + ")");
-                    SendAck(false);
-                }
-            }
-            else if(!frame.crcValidated){
-                system.Monitor("CRC check failed.\n");
-                if(arqType != ARQ_TYPE_NOARQ) {
-                    SendAck(false);
-                }
-            }
-            else {
-                SendAck(true);
-                OnReceive(frame);
-            }
-        }
-        else{
-            OnReceive(frame);
-        }
-    }
+	public void RunReceive() {
+		ProcessReceivedFrame(BuildReceiveFrame(Receive()));
+	}
 
-    private void SendAck(boolean accepted){
-        if(accepted){
-            incrementReceiveSeqNo();
-        }
-        system.Monitor("Send Ack | accepted("+accepted+"), seqNo("+receiveSeqNo+")");
-        if(system.delay>0){
-            system.Monitor("Delay applied | sleep("+system.delay+")");
-            try{
-                Thread.sleep(system.delay);
-            }
-            catch(InterruptedException e){
-            	e.printStackTrace();
-            }
-        }
-        connection.Send(BuildAckFrame(accepted, 0, receiveSeqNo).byteArray, system.repeat_count);
-    }
+	protected byte[] Receive() {
+		system.Monitor("Waiting...");
+		return connection.Receive();
+	}
 
-    protected void OnReceive(Frame frame){
-        system.Print("< " + frame.data);
-    }
+	protected void ProcessReceivedFrame(Frame frame) {
+		if (frame == null)
+			return;
+		system.Monitor("Received - " + frame.ToString());
 
-    protected boolean OnAck(int seqNo) {
-        if(arqType == ARQ_TYPE_NOARQ)
-            return true;
+		Random random = new Random();
+		int randomValue = random.nextInt(100);
+		if (system.loss_percentage > randomValue) {
+			system.Monitor("Frame is forced to loss [Test featrue]) | threshold("
+					+ system.loss_percentage + "), value(" + randomValue + ")");
+			return;
+		}
 
-        int displacement = seqNo - ackReceived;
-        if(displacement<0)
-            displacement += windowSize;
+		if (frame.type == Frame.TYPE_ACK || frame.type == Frame.TYPE_NACK
+				|| usePiggyBacking) {
+			OnAck(frame.ackSeq);
+		} else {
+			if (arq != null) {
+				if (!arq.IsValidSeq(frame.sendSeq)) {
+					system.Monitor("Invalid Sequence Number | expected("
+							+ arq.GetExpectedSeqNumberString() + "), actual("
+							+ frame.sendSeq + ")");
+					//SendAck(false);
+				} else if (!frame.crcValidated) {
+					system.Monitor("CRC check failed.\n");
+					SendAck(false);
+				} else {
+					SendAck(true);
+					OnReceive(frame);
+				}
+			} else {
+				OnReceive(frame);
+			}
+		}
+	}
 
-        system.Monitor("OnAck | seqNo(" + seqNo + "), ackReceived(" + ackReceived + "), displacement(" + displacement + ")");
+	private void SendAck(boolean accepted) {
+		int ackNo = 0;
+		if (arq != null)
+			ackNo = arq.GetAckSeqNo(accepted);
 
-        ackReceived = seqNo;
+		system.Monitor("Send Ack | accepted(" + accepted + "), seqNo(" + ackNo
+				+ ")");
+		if (system.delay > 0) {
+			system.Monitor("Delay applied | sleep(" + system.delay + ")");
+			try {
+				Thread.sleep(system.delay);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		connection.Send(BuildAckFrame(accepted, 0, ackNo).byteArray,
+				system.repeat_count);
+	}
 
-        if((windowSize>2 && displacement >= windowSize-1) || displacement==0) {
-            system.Monitor("Error occured | Resend from (" + seqNo + ")");
-            ResendFrom(ackReceived);
-        }
-        else{
-            ClearBuffer(seqNo);
-        }
+	protected void OnReceive(Frame frame) {
+		system.Print("< " + frame.data);
+	}
+	
+	public void ResendFrom(int seqNo){
+		if(arq != null){
+			if(GetRetryCount() >= 0){
+				if(arq.ResendFrom(seqNo)){
+					SetRetryCount(GetRetryCount()-1);
+				}
+			}
+			
+			if(GetRetryCount()>=0){
+				system.Monitor("* Retry (" + (system.timeout_cnt-remainedRetryCount) + "/" + system.timeout_cnt + ")\n");
+			}
+		}
+	}
+	
+	protected void SetRetryCount(int count){
+		remainedRetryCount = count;
+	}
+	
+	protected int GetRetryCount(){
+		return remainedRetryCount;
+	}
 
-        return true;
-    }
-    public boolean IsNeededToWaitAck(){
-        if(arqType == ARQ_TYPE_NOARQ)
-            return false;
+	protected boolean OnAck(int seqNo) {
+		if (arq == null)
+			return true;
 
-        int displacement = sendeSeqNo - ackReceived;
-        if(displacement<0)
-            displacement += windowSize;
-        return displacement >= windowSize-1;
-    }
+		arq.SetTimeout(system.timeout, false);
 
-    public void Print(String str){
-        system.Print(str);
-    }
+		if (arq.ProcessAck(seqNo)) {
+			SetRetryCount(system.timeout_cnt);
+		}
+		else{
+			SetRetryCount(GetRetryCount()-1);
+		}
 
-    abstract protected Frame BuildReceiveFrame(byte[] bytes);
-    abstract protected Frame BuildSendFrame(String str, int reqSeqNo, int ackSeqNo);
-    abstract protected Frame BuildAckFrame(boolean accepted, int reqSeqNo, int ackSeqNo);
+		if (!arq.IsBufferEmpty()) {
+			arq.SetTimeout(system.timeout, true);
+		}
+		
+		UpdateBlockedStatus();
 
-    private void ClearBuffer(int ackSeqNo){
-        int i = receiveSeqNo;
-        while(i!=ackSeqNo){
-            sendBuffer[i] = null;
+		return true;
+	}
 
-            i = (i+1)%windowSize;
-        }
-    }
+	public boolean IsBlocked() {
+		if (arq == null) {
+			return false;
+		}
 
-    public void Clear(){
-    	if(connection!=null)
-    		connection.Close();
-    }
+		return arq.IsBlocked();
+	}
+	
+	public boolean IsWaitingSending(){
+		if(arq == null)
+			return false;
+		
+		return arq.IsWaitingSending();
+	}
+
+	public void Print(String str) {
+		system.Print(str);
+	}
+
+	abstract protected Frame BuildReceiveFrame(byte[] bytes);
+
+	abstract protected Frame BuildSendFrame(String str, int reqSeqNo,
+			int ackSeqNo);
+
+	abstract protected Frame BuildAckFrame(boolean accepted, int reqSeqNo,
+			int ackSeqNo);
+
+	public void Clear() {
+		if (connection != null)
+			connection.Close();
+		if(arq!=null){
+			arq.SetTimeout(0, false);
+		}
+	}
+
+	public void Monitor(String str) {
+		system.Monitor(str);
+	}
 }

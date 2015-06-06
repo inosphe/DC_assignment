@@ -221,9 +221,11 @@ public class ChatSystem extends JFrame {
 		if (current_state != null) {
 			current_state.Monitor(str);
 		}
+		System.out.println(str);
 	}
 	
 	public void Alert(String str){
 		JOptionPane.showMessageDialog(null, str, "Alert", JOptionPane.WARNING_MESSAGE);
 	}
+
 }

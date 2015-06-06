@@ -15,10 +15,13 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public abstract class ProtocolThreadBase extends Protocol {
 
+	public Lock lock = new ReentrantLock();
+	
 	public Lock lockSend = new ReentrantLock();
 	public final Condition condSend = lockSend.newCondition();
+	
 	public Lock lockReceive = new ReentrantLock();
-	public final Condition condAck = lockReceive.newCondition();
+	public final Condition condBlock = lockReceive.newCondition();
 	SenderThread senderThread;
 	ReceiverThread receiverThread;
 
@@ -42,28 +45,38 @@ public abstract class ProtocolThreadBase extends Protocol {
 
 	@Override
 	protected boolean Init() {
+		super.Init();
+		
 		receiverThread.start();
 		senderThread.start();
 		return true;
 	}
-
-	@Override
+	
 	public boolean Send(String str) {
-		if (IsNeededToWaitAck())
+		if (UpdateBlockedStatus()) {
+			int seqNo = NextSendSeqNo();
+			if (seqNo < 0)
+				return false;
+			else{
+				boolean ret = true;
+				lockSend.lock();
+				try {
+					senderThread.Send(BuildSendFrame(str, seqNo, 0));
+					system.Print("> " + str);
+					ret = true;
+				}
+				catch(Exception e){
+					e.printStackTrace();
+					ret = false;
+				}
+				finally {
+					condSend.signal();
+					lockSend.unlock();
+				}
+				return ret;
+			}
+		} else
 			return false;
-
-		lockSend.lock();
-		try {
-			senderThread.Send(BuildSendFrame(str, NextSendSeqNo(), 0));
-		}
-		catch(Exception e){
-			e.printStackTrace();
-		}
-		finally {
-			condSend.signal();
-			lockSend.unlock();
-		}
-		return true;
 	}
 
 	@Override
@@ -75,27 +88,64 @@ public abstract class ProtocolThreadBase extends Protocol {
 	}
 
 	@Override
-	public boolean IsNeededToWaitAck() {
+	public boolean IsBlocked() {
+		lock.lock();
 		lockReceive.lock();
-		boolean ret = super.IsNeededToWaitAck();
+		boolean ret = super.IsBlocked();
 		lockReceive.unlock();
+		lock.unlock();
 		return ret;
 	}
 
 	@Override
 	public void OnReceive(Frame frame) {
+		lock.lock();
 		lockReceive.lock();
 		super.OnReceive(frame);
 		lockReceive.unlock();
+		lock.unlock();
 	}
+	
+
+	protected void SetRetryCount(int count){
+		lock.lock();
+		remainedRetryCount = count;
+		lock.unlock();
+	}
+	
+	protected int GetRetryCount(){
+		lock.lock();
+		int ret = remainedRetryCount;
+		lock.unlock();
+		return ret;
+	}
+	
 
 	@Override
 	protected boolean OnAck(int seqNo) {
 		boolean ret = super.OnAck(seqNo);
+		lock.lock();
 		lockReceive.lock();
-		condAck.signal();
+		condBlock.signal();
 		lockReceive.unlock();
+		lock.unlock();
 		return ret;
 	}
-
+	
+	@Override
+	public void SetWating(boolean _waiting) {
+		lock.lock();
+		super.SetWating(_waiting);
+		lock.unlock();		
+	}
+	
+	@Override
+	public boolean IsWaitingSending(){
+		lock.lock();
+		lockSend.lock();
+		boolean ret = super.IsWaitingSending();
+		lockSend.unlock();
+		lock.unlock();
+		return ret;
+	}
 }

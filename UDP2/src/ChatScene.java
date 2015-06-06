@@ -48,7 +48,9 @@ public class ChatScene extends SceneState implements ActionListener {
     public void OnBlocked(ProtocolEvent evt)
     {
         Protocol protocol = system.GetProtocol();
-        input.SetEnabled(!protocol.IsWaiting() && protocol.IsConnectionEstablsished());
+        synchronized(input){
+        	input.SetEnabled(!protocol.IsWaiting() && protocol.IsConnectionEstablsished());
+        }
     }
     public void OnReceived(ReceiveEvent evt)
     {
@@ -75,7 +77,6 @@ public class ChatScene extends SceneState implements ActionListener {
         String text = textField.getText();
         System.out.println(text);
         textField.setText("");
-        system.Print("> " + text + "\n");
         system.Send(text + "\n");
     }
 

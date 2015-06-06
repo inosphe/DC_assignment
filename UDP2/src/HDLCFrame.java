@@ -1,13 +1,15 @@
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
+import javax.swing.JOptionPane;
+
 /**
  * Created by inosphe on 15. 5. 23..
  */
 public class HDLCFrame {
-    final static public int FLAG_TYPE_DATA = 0x0001;
-    final static public int FLAG_TYPE_ACK = 0x0002;
-    final static public int FLAG_TYPE_NAK = 0x0003;
+    static public int FLAG_TYPE_DATA = 0x0001;
+    static public int FLAG_TYPE_ACK = 0x0002;
+    static public int FLAG_TYPE_NAK = 0x0003;
 
     final static public int ARQ_TYPE_NOARQ = 0x0000;
     final static public int ARQ_TYPE_STOP_N_WAIT = 0x0001;
@@ -44,7 +46,19 @@ public class HDLCFrame {
             int crc = buffer.getInt();
             data = new byte[length];
             buffer.get(data, 0, length);
-            crcValidated = CheckCRC(bytes, length+8);
+            
+            switch(Option.ReceiveCRC){
+            case Option.CRC_TYPE_NO:
+            	crcValidated = true;
+            	break;
+            case Option.CRC_TYPE_DATA_ONLY:
+            	crcValidated = CheckDataCRC(crc, data, length);
+            	break;
+            case Option.CRC_TYPE_WHOLE:
+            	crcValidated = CheckWholeCRC(crc, bytes, length+8);
+            	break;	
+            }
+            
             System.out.println("crcValidated : " + crcValidated);
         }
         else{
@@ -75,33 +89,28 @@ public class HDLCFrame {
         f.ackSeq = ackNumber;
         if(buildByteArray) {
             f.byteArray = GetByteArray();
-            if(type == FLAG_TYPE_DATA){
-            	f.crcValidated = CheckCRC(f.byteArray, len+8);
-            }
         }
-        else{
-            f.crcValidated = crcValidated;
-        }
+        f.crcValidated = crcValidated;
         f.sendSeq = seqNumber;
         if(len>0)
             f.data = new String(data);
         else
             f.data = "";
 
-        switch(type){
-            case FLAG_TYPE_DATA:
-                f.type = Frame.TYPE_DATA;
-                break;
-            case FLAG_TYPE_ACK:
-                f.type = Frame.TYPE_ACK;
-                break;
-            case FLAG_TYPE_NAK:
-                f.type = Frame.TYPE_NACK;
-                break;
+        
+        if(type == FLAG_TYPE_DATA){
+        	f.type = Frame.TYPE_DATA;
         }
-
-
-
+        else if(type == FLAG_TYPE_ACK){
+        	f.type = Frame.TYPE_ACK;
+        }
+        else if(type == FLAG_TYPE_NAK){
+        	f.type = Frame.TYPE_NACK;
+        }
+        else{
+        	JOptionPane.showMessageDialog(null, "invalid flag("+type+")", "Alert", JOptionPane.WARNING_MESSAGE);
+        }
+        
         return f;
     }
 
@@ -123,7 +132,21 @@ public class HDLCFrame {
         if(data != null){
         	buffer.putInt(0);
         	buffer.put(data);
-        	int crc = GetCRC(buffer.array(), dataLen+8);
+        	int crc = 0;
+        	switch(Option.SendCRC){
+        		case Option.CRC_TYPE_WHOLE:
+        		crc = GetCRC(buffer.array(), dataLen+8);
+        		break;
+        		
+        		case Option.CRC_TYPE_DATA_ONLY:
+        		crc = GetCRC(data, data.length);
+        		break;
+        		
+        		case Option.CRC_TYPE_NO:
+        		default:
+        		break;		
+        	}
+        		
             buffer.putInt(4, crc);
         }            
         
@@ -137,11 +160,23 @@ public class HDLCFrame {
         return (int)crc32.getValue();
     }
 
-    protected boolean CheckCRC(byte[] bytes, int length){
+    private boolean CheckWholeCRC(int crc, byte[] bytes, int length){
         ByteBuffer buffer = ByteBuffer.allocate(bytes.length);
         buffer.put(bytes);
-        int crc = buffer.getInt(4);
         buffer.putInt(4, 0);
+        buffer.flip();
+
+        int crc2 = GetCRC(buffer.array(), length);
+        System.out.printf("CRC : %x, %x\n", crc, crc2);
+        if(crc == crc2){
+            System.out.printf("Same\n");
+        }
+        return crc == crc2;
+    }
+    
+    private boolean CheckDataCRC(int crc, byte[] bytes, int length){
+    	ByteBuffer buffer = ByteBuffer.allocate(bytes.length);
+        buffer.put(bytes);
         buffer.flip();
 
         int crc2 = GetCRC(buffer.array(), length);
