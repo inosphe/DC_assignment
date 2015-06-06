@@ -61,7 +61,7 @@ public abstract class ProtocolThreadBase extends Protocol {
 				boolean ret = true;
 				lockSend.lock();
 				try {
-					senderThread.Send(BuildSendFrame(str, seqNo, 0));
+					senderThread.Send(BuildSendFrame(str, seqNo, arq.GetLastReceivedSeq()));
 					system.Print("> " + str);
 					ret = true;
 				}

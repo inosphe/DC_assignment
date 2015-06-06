@@ -96,15 +96,13 @@ public abstract class ARQBase {
 	protected void OnTimeOuted(){}
 
 	
-	
-	public void SetBuffer(Frame frame){
+	public void SetBuffer(int i, Frame frame){
 		lock.lock();
-		if(frame == null){
-			System.out.println("frame null");
-		}
-		System.out.println("setbuffer : " + frame.ToString());
-		sendBuffer[frame.sendSeq] = frame;
+		sendBuffer[i] = frame;
 		lock.unlock();
+	}
+	public void SetBuffer(Frame frame){
+		SetBuffer(frame.sendSeq, frame);		
 	}
 	
 	public abstract String ToString();	
@@ -113,8 +111,6 @@ public abstract class ARQBase {
 	public abstract int GetNextSendSeqNo();
 	public abstract boolean ProcessAck(int ackNo);
 	public abstract boolean ResendFrom(int seqNo);
-	//ack to sender
-	public abstract int GetAckSeqNo(boolean accepted);
 	//received ack
 	public abstract int GetLastAckSeq();
 
@@ -125,5 +121,8 @@ public abstract class ARQBase {
 	
 	public abstract String GetExpectedSeqNumberString(); 
 	
-	public abstract boolean IsBufferEmpty(); 
+	public abstract boolean IsBufferEmpty();
+	
+	public abstract void SendAck(Frame frame, boolean accepted);
+	public abstract int GetLastReceivedSeq();
 }

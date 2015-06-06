@@ -164,7 +164,7 @@ public abstract class Protocol {
 				return false;
 			else{
 		        system.Print("> " + str);
-				return Send(BuildSendFrame(str, seqNo, 0), 0);
+				return Send(BuildSendFrame(str, seqNo, arq.GetLastReceivedSeq()), 0);
 			}
 		} else
 			return false;
@@ -232,7 +232,7 @@ public abstract class Protocol {
 
 		if (frame.type == Frame.TYPE_ACK || frame.type == Frame.TYPE_NACK
 				|| usePiggyBacking) {
-			OnAck(frame.ackSeq);
+			OnAck(frame.sendSeq);
 		} else {
 			if (arq != null) {
 				if (!arq.IsValidSeq(frame.sendSeq)) {
@@ -242,34 +242,15 @@ public abstract class Protocol {
 					//SendAck(false);
 				} else if (!frame.crcValidated) {
 					system.Monitor("CRC check failed.\n");
-					SendAck(false);
+					arq.SendAck(frame, false);
 				} else {
-					SendAck(true);
+					arq.SendAck(frame, true);
 					OnReceive(frame);
 				}
 			} else {
 				OnReceive(frame);
 			}
 		}
-	}
-
-	private void SendAck(boolean accepted) {
-		int ackNo = 0;
-		if (arq != null)
-			ackNo = arq.GetAckSeqNo(accepted);
-
-		system.Monitor("Send Ack | accepted(" + accepted + "), seqNo(" + ackNo
-				+ ")");
-		if (system.delay > 0) {
-			system.Monitor("Delay applied | sleep(" + system.delay + ")");
-			try {
-				Thread.sleep(system.delay);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		connection.Send(BuildAckFrame(accepted, 0, ackNo).byteArray,
-				system.repeat_count);
 	}
 
 	protected void OnReceive(Frame frame) {
@@ -288,6 +269,10 @@ public abstract class Protocol {
 				system.Monitor("* Retry (" + (system.timeout_cnt-remainedRetryCount) + "/" + system.timeout_cnt + ")\n");
 			}
 		}
+	}
+
+	public void SendRaw(Frame f){
+		connection.Send(f.byteArray, system.repeat_count);
 	}
 	
 	protected void SetRetryCount(int count){
@@ -344,7 +329,7 @@ public abstract class Protocol {
 	abstract protected Frame BuildSendFrame(String str, int reqSeqNo,
 			int ackSeqNo);
 
-	abstract protected Frame BuildAckFrame(boolean accepted, int reqSeqNo,
+	abstract public Frame BuildAckFrame(boolean accepted, int reqSeqNo,
 			int ackSeqNo);
 
 	public void Clear() {

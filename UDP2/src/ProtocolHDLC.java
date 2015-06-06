@@ -36,7 +36,7 @@ public class ProtocolHDLC extends ProtocolThreadBase {
     }
 
     @Override
-    protected Frame BuildAckFrame(boolean accepted, int reqSeqNo, int ackSeqNo){
+    public Frame BuildAckFrame(boolean accepted, int reqSeqNo, int ackSeqNo){
         HDLCFrame hdlcFrame;
         if(accepted)
             hdlcFrame = new HDLCFrame(HDLCFrame.FLAG_TYPE_ACK);

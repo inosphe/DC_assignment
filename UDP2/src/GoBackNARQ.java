@@ -1,9 +1,9 @@
 
 public class GoBackNARQ extends ARQBase{
 	
-    private int sendeSeqNo = 0;
-    private int receiveSeqNo = 0;
-    private int ackReceived = 0;
+    private int sendeSeqNo = 1;
+    private int receiveSeqNo = 1;
+    private int ackReceived = 1;
     
     
     public GoBackNARQ(Protocol _protocol, int _windowSize){
@@ -100,12 +100,16 @@ public class GoBackNARQ extends ARQBase{
     }
     
     //ack to sender
-    @Override
-    public int GetAckSeqNo(boolean accepted){
+    private int GetAckSeqNo(boolean accepted){
     	if(accepted){
             incrementReceiveSeqNo();
         }
     	
+    	return receiveSeqNo;
+    }
+
+    @Override
+    public int GetLastReceivedSeq(){
     	return receiveSeqNo;
     }
     
@@ -132,5 +136,23 @@ public class GoBackNARQ extends ARQBase{
     @Override
     public boolean IsBufferEmpty(){
     	return ackReceived == sendeSeqNo;
+    }
+    
+    @Override
+    public void SendAck(Frame frame, boolean accepted){
+    	int ack = frame.sendSeq;
+    	int seq = GetAckSeqNo(accepted);    	 
+
+		protocol.Monitor("Send Ack | accepted(" + accepted + "), seqNo(" + seq
+				+ ")");
+		if (protocol.system.delay > 0) {
+			protocol.system.Monitor("Delay applied | sleep(" + protocol.system.delay + ")");
+			try {
+				Thread.sleep(protocol.system.delay);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		protocol.SendRaw(protocol.BuildAckFrame(accepted, seq, ack));
     }
 }
