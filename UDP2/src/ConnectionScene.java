@@ -21,7 +21,7 @@ public class ConnectionScene extends SceneState {
     private JTextField tf_delay, tf_loss_percentage, tf_repeat_count;
 
     private int selectedProtocolType = 1;
-    private int selectedARQType = 2;
+    private int selectedARQType = 3;
     private CommPortIdentifier selectedPortId = null;
 
 
@@ -95,6 +95,7 @@ public class ConnectionScene extends SceneState {
         combo_ARQType.addItem("No ARQ");
         combo_ARQType.addItem("Stop&Wait ARQ");
         combo_ARQType.addItem("Go-Back-N ARQ");
+        combo_ARQType.addItem("Selective Repeat ARQ");
         combo_ARQType.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {

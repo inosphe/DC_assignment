@@ -123,8 +123,8 @@ public class HDLCFrame {
         	totalLength += 4;
         }
         ByteBuffer buffer = ByteBuffer.allocate(totalLength);
-        buffer.put((byte) seqNumber);
-        buffer.put((byte) ackNumber);
+        buffer.put((byte) (seqNumber&0xFF));
+        buffer.put((byte) (ackNumber&0xFF));
         byte flag = (byte)(arqType <<4 | type);
         buffer.put(flag);
         buffer.put((byte) dataLen);

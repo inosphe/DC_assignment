@@ -67,7 +67,7 @@ public class ChatScene extends SceneState implements ActionListener {
 
 	public void OnConnectionLost(ProtocolEvent evt) {
         Protocol protocol = system.GetProtocol();
-        input.SetEnabled(!protocol.IsWaiting() && protocol.IsConnectionEstablsished());
+        input.SetEnabled(protocol!=null && !protocol.IsWaiting() && protocol.IsConnectionEstablsished());
         system.ClearProtocol();
         system.SetState(ChatSystem.STATE_ID_CONNECTION);
     }

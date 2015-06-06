@@ -1,18 +1,12 @@
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import javax.swing.Timer;
-
 
 public abstract class ARQBase {
-	private Timer timer;
-	private boolean isTimerRunning = false;
 	private Frame[] sendBuffer;
 	private int windowSize = -1;
 	Protocol protocol;
-	private boolean isTimeOuted = false;
 	private Lock lock = new ReentrantLock();
 	
 	public ARQBase(Protocol _protocol, int _windowSize){
@@ -20,18 +14,6 @@ public abstract class ARQBase {
 		windowSize = _windowSize;
 		sendBuffer = new Frame[windowSize];
 		
-		timer = new Timer(protocol.system.timeout, new ActionListener() {
-			
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				lock();
-				isTimerRunning = false;
-				isTimeOuted = true;
-				
-				OnTimeOuted();
-				unlock();
-			}
-		});
 		
 	}
 
@@ -44,28 +26,9 @@ public abstract class ARQBase {
 		lock.unlock();
 	}
 
-	public void SetTimeout(int delay, boolean start){
-		timer.stop();
-		if(start){
-			isTimerRunning = true;
-			timer.setDelay(delay);
-			timer.start();
-		}
-		else{
-			isTimeOuted = false;
-		}
-	}
 	
 	public int GetWindowSize(){
 		return windowSize;
-	}
-	
-	public boolean IsTimerRunning(){
-		return isTimerRunning;
-	}
-	
-	public boolean IsTimeOuted(){
-		return isTimeOuted;
 	}
 	
 	protected void ClearBuffer(int begin, int end){
@@ -89,13 +52,6 @@ public abstract class ARQBase {
 		
 	}
 	
-	public void ReleaseTimeOuted(){
-		isTimeOuted = false;
-	}
-	
-	protected void OnTimeOuted(){}
-
-	
 	public void SetBuffer(int i, Frame frame){
 		lock.lock();
 		sendBuffer[i] = frame;
@@ -109,20 +65,16 @@ public abstract class ARQBase {
 	public abstract boolean IsBlocked();
 	public abstract boolean IsWaitingSending();
 	public abstract int GetNextSendSeqNo();
-	public abstract boolean ProcessAck(int ackNo);
-	public abstract boolean ResendFrom(int seqNo);
-	//received ack
-	public abstract int GetLastAckSeq();
-
 	//received packet
 	public abstract boolean IsValidSeq(int seqNo);
 
 	public abstract int GetType();
 	
 	public abstract String GetExpectedSeqNumberString(); 
-	
-	public abstract boolean IsBufferEmpty();
-	
 	public abstract void SendAck(Frame frame, boolean accepted);
 	public abstract int GetLastReceivedSeq();
+	public abstract void OnAck(int ackNo);
+	public void Clear(){}
+	public abstract void OnSend(Frame frame);
+	public abstract void OnReceive(Frame frame);
 }

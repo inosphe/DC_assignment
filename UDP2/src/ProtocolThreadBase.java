@@ -61,7 +61,7 @@ public abstract class ProtocolThreadBase extends Protocol {
 				boolean ret = true;
 				lockSend.lock();
 				try {
-					senderThread.Send(BuildSendFrame(str, seqNo, arq.GetLastReceivedSeq()));
+					senderThread.Send(BuildSendFrame(str, seqNo, GetARQ().GetLastReceivedSeq()));
 					system.Print("> " + str);
 					ret = true;
 				}
@@ -96,29 +96,6 @@ public abstract class ProtocolThreadBase extends Protocol {
 		lock.unlock();
 		return ret;
 	}
-
-	@Override
-	public void OnReceive(Frame frame) {
-		lock.lock();
-		lockReceive.lock();
-		super.OnReceive(frame);
-		lockReceive.unlock();
-		lock.unlock();
-	}
-	
-
-	protected void SetRetryCount(int count){
-		lock.lock();
-		remainedRetryCount = count;
-		lock.unlock();
-	}
-	
-	protected int GetRetryCount(){
-		lock.lock();
-		int ret = remainedRetryCount;
-		lock.unlock();
-		return ret;
-	}
 	
 
 	@Override
@@ -148,4 +125,11 @@ public abstract class ProtocolThreadBase extends Protocol {
 		lock.unlock();
 		return ret;
 	}
+
+	@Override
+	public void UpdateSendLock(){
+		lockSend.lock();
+		condSend.signal();
+		lockSend.unlock();
+	};
 }

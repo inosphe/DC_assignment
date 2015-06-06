@@ -24,7 +24,7 @@ public class ChatSystem extends JFrame {
 
 	public int timeout = 250;
 	public int timeout_cnt = 10;
-	public int delay = 0;
+	public int delay = 500;
 	public int loss_percentage = 0;
 	public int repeat_count = 1;
 

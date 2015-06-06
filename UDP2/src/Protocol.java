@@ -11,7 +11,7 @@ public abstract class Protocol {
 	static public final int ARQ_TYPE_NOARQ = 0;
 	static public final int ARQ_TYPE_STOP_N_WAIT = 1;
 	static public final int ARQ_TYPE_GO_BACK_N = 2;
-	protected int remainedRetryCount = 0;
+	static public final int ARQ_TYPE_SEL_REPEAT = 3;
 
 	public List<ProtocolEventListener> eventListeners = new ArrayList<ProtocolEventListener>();;
 
@@ -39,7 +39,6 @@ public abstract class Protocol {
 	}
 
 	protected boolean Init() {
-		remainedRetryCount = system.timeout_cnt;
 		return true;
 	}
 
@@ -50,6 +49,9 @@ public abstract class Protocol {
 	}
 
 	private ARQBase arq = null;
+	public ARQBase GetARQ(){
+		return arq;
+	}
 
 	public void SetARQType(int arqType) {
 		switch (arqType) {
@@ -59,6 +61,10 @@ public abstract class Protocol {
 
 		case ARQ_TYPE_GO_BACK_N:
 			arq = new GoBackNARQ(this, 8);
+			break;
+			
+		case ARQ_TYPE_SEL_REPEAT:
+			arq = new SelRepeatARQ(this, 16);
 			break;
 
 		default:
@@ -101,13 +107,6 @@ public abstract class Protocol {
 		for (ProtocolEventListener el : eventListeners) {
 			el.OnBlocked(evt);
 		}
-	}
-
-	public int GetLastAckSeq() {
-		if (arq == null)
-			return -1;
-
-		return arq.GetLastAckSeq();
 	}
 
 	protected int NextSendSeqNo() {
@@ -170,20 +169,7 @@ public abstract class Protocol {
 			return false;
 	}
 
-	public void OnTimeOuted() {
-		assert (arq != null);
-
-		if (GetRetryCount() < 0) {
-			system.Monitor("Request Failed.\n");
-			system.Monitor("fail");
-			// sleep(2500);
-			OnConnectionLost();
-			
-		}
-		
-		
-		ResendFrom(arq.GetLastAckSeq());
-		
+	public void OnTimeOuted() {		
 		UpdateBlockedStatus();
 	}
 
@@ -201,7 +187,7 @@ public abstract class Protocol {
 		assert(sendFrame.type == Frame.TYPE_DATA);
 		if(arq != null){
 			arq.SetBuffer(sendFrame);
-			arq.SetTimeout(system.timeout, true);
+			arq.OnSend(sendFrame);
 		}
 
 		system.Monitor("Send - " + sendFrame.ToString());
@@ -245,61 +231,32 @@ public abstract class Protocol {
 					arq.SendAck(frame, false);
 				} else {
 					arq.SendAck(frame, true);
-					OnReceive(frame);
+					arq.OnReceive(frame);
+					system.Monitor("Data("+frame.sendSeq+") is processed");
 				}
 			} else {
 				OnReceive(frame);
+				system.Monitor("Data("+frame.sendSeq+") is processed");
 			}
 		}
 	}
 
-	protected void OnReceive(Frame frame) {
+	public void OnReceive(Frame frame) {
 		system.Print("< " + frame.data);
 	}
 	
-	public void ResendFrom(int seqNo){
-		if(arq != null){
-			if(GetRetryCount() >= 0){
-				if(arq.ResendFrom(seqNo)){
-					SetRetryCount(GetRetryCount()-1);
-				}
-			}
-			
-			if(GetRetryCount()>=0){
-				system.Monitor("* Retry (" + (system.timeout_cnt-remainedRetryCount) + "/" + system.timeout_cnt + ")\n");
-			}
-		}
-	}
 
 	public void SendRaw(Frame f){
 		connection.Send(f.byteArray, system.repeat_count);
 	}
 	
-	protected void SetRetryCount(int count){
-		remainedRetryCount = count;
-	}
-	
-	protected int GetRetryCount(){
-		return remainedRetryCount;
-	}
 
 	protected boolean OnAck(int seqNo) {
 		if (arq == null)
 			return true;
 
-		arq.SetTimeout(system.timeout, false);
-
-		if (arq.ProcessAck(seqNo)) {
-			SetRetryCount(system.timeout_cnt);
-		}
-		else{
-			SetRetryCount(GetRetryCount()-1);
-		}
-
-		if (!arq.IsBufferEmpty()) {
-			arq.SetTimeout(system.timeout, true);
-		}
 		
+		arq.OnAck(seqNo);
 		UpdateBlockedStatus();
 
 		return true;
@@ -336,11 +293,24 @@ public abstract class Protocol {
 		if (connection != null)
 			connection.Close();
 		if(arq!=null){
-			arq.SetTimeout(0, false);
+			arq.Clear();
 		}
 	}
 
 	public void Monitor(String str) {
 		system.Monitor(str);
 	}
+
+	public void Delay(){
+		if (system.delay > 0) {
+			system.Monitor("Delay applied | sleep(" + system.delay + ")");
+			try {
+				Thread.sleep(system.delay);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	public void UpdateSendLock(){};
 }
