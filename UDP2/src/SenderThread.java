@@ -24,7 +24,9 @@ public class SenderThread extends Thread{
 
             try{
                 protocol.lockSend.lock();
-                while(sendBuffer.isEmpty() == true || protocol.IsWaitingSending()){
+                // || protocol.IsWaitingSending()
+                while(sendBuffer.isEmpty() == true){
+                	protocol.Monitor("locked");
                     protocol.condSend.await();
                 }
                 Frame sendFrame = sendBuffer.element();

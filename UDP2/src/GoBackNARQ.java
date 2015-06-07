@@ -115,6 +115,7 @@ public class GoBackNARQ extends ARQBase{
             displacement += GetWindowSize();
         boolean ret = displacement >= GetWindowSize()-1;
         unlock();
+        protocol.Monitor("isfull : " + ret);
         return ret;
 	}
 	   

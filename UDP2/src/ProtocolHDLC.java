@@ -27,6 +27,9 @@ public class ProtocolHDLC extends ProtocolThreadBase {
             case ARQ_TYPE_GO_BACK_N:
                 hdlcFrame.arqType = HDLCFrame.ARQ_TYPE_GO_BACK_N;
                 break;
+            case ARQ_TYPE_SEL_REPEAT:
+                hdlcFrame.arqType = HDLCFrame.ARQ_TYPE_SEL_REPEAT;
+                break;
         }
 
         hdlcFrame.ackNumber = ackSeqNo;
@@ -53,6 +56,10 @@ public class ProtocolHDLC extends ProtocolThreadBase {
             case ARQ_TYPE_GO_BACK_N:
                 hdlcFrame.arqType = HDLCFrame.ARQ_TYPE_GO_BACK_N;
                 break;
+            case ARQ_TYPE_SEL_REPEAT:
+                hdlcFrame.arqType = HDLCFrame.ARQ_TYPE_SEL_REPEAT;
+                break;
+                
         }
 
         hdlcFrame.ackNumber = ackSeqNo;

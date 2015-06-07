@@ -96,11 +96,11 @@ public class SelRepeatARQ extends ARQBase {
 		if(displacement < 0)
 			displacement += GetWindowSize();
 		
-		int displacement2 = send_start + GetSendingWindowSize() - ackNo;
+		int displacement2 = (send_start + GetSendingWindowSize()-1)%GetWindowSize() - ackNo;
 		if(displacement2 < 0)
 			displacement2 += GetWindowSize();
 		
-		if(displacement + displacement2 == GetSendingWindowSize()){
+		if(displacement + displacement2 == GetSendingWindowSize()-1){
 			Frame f = GetFrame(ackNo);
 			return f!=null;
 		}
@@ -160,11 +160,11 @@ public class SelRepeatARQ extends ARQBase {
 		if(displacement < 0)
 			displacement += GetWindowSize();
 		
-		int displacement2 = receive_window_start_seq + GetSendingWindowSize() - seqNo;
+		int displacement2 = (receive_window_start_seq + GetSendingWindowSize()-1)%GetWindowSize() - seqNo;
 		if(displacement2 < 0)
 			displacement2 += GetWindowSize();
 		
-		return displacement + displacement2 == GetSendingWindowSize();
+		return displacement + displacement2 == GetSendingWindowSize()-1;
 	}
 
 	@Override
@@ -206,7 +206,7 @@ public class SelRepeatARQ extends ARQBase {
 					+ ")");
 			
 			protocol.Delay();
-			protocol.SendRaw(protocol.BuildAckFrame(accepted, seq, ack));
+			protocol.SendRaw(protocol.BuildAckFrame(true, seq, ack));
 		}
 	}
 
@@ -247,10 +247,12 @@ public class SelRepeatARQ extends ARQBase {
 		 for(int i=begin; i!=end; i=(i+1)%GetWindowSize()){
 			 if(i==receive_window_start_seq && receive_buffer[i]!=null){
 				 receive_window_start_seq = (receive_window_start_seq+1)%GetWindowSize();
+				 protocol.OnReceive(receive_buffer[i]);
 				 receive_buffer[i] = null;
-				 protocol.OnReceive(frame);
 			 }
 		 }
+		 
+		 protocol.Monitor("receive_window_start_seq("+receive_window_start_seq+")");
 	 }
 	 
 	 

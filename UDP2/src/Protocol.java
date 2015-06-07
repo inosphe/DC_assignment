@@ -208,24 +208,26 @@ public abstract class Protocol {
 			return;
 		system.Monitor("Received - " + frame.ToString());
 
-		Random random = new Random();
-		int randomValue = random.nextInt(100);
-		if (system.loss_percentage > randomValue) {
-			system.Monitor("Frame is forced to loss [Test featrue]) | threshold("
-					+ system.loss_percentage + "), value(" + randomValue + ")");
-			return;
-		}
+		
 
 		if (frame.type == Frame.TYPE_ACK || frame.type == Frame.TYPE_NACK
 				|| usePiggyBacking) {
 			OnAck(frame.sendSeq);
 		} else {
+			Random random = new Random();
+			int randomValue = random.nextInt(100);
+			if (system.loss_percentage > randomValue) {
+				system.Monitor("Frame is forced to loss [Test featrue]) | threshold("
+						+ system.loss_percentage + "), value(" + randomValue + ")");
+				return;
+			}
+			
 			if (arq != null) {
 				if (!arq.IsValidSeq(frame.sendSeq)) {
 					system.Monitor("Invalid Sequence Number | expected("
 							+ arq.GetExpectedSeqNumberString() + "), actual("
 							+ frame.sendSeq + ")");
-					//SendAck(false);
+					arq.SendAck(frame, false);
 				} else if (!frame.crcValidated) {
 					system.Monitor("CRC check failed.\n");
 					arq.SendAck(frame, false);
@@ -242,6 +244,7 @@ public abstract class Protocol {
 	}
 
 	public void OnReceive(Frame frame) {
+		system.Monitor("OnReceive | " + frame.ToString());
 		system.Print("< " + frame.data);
 	}
 	
